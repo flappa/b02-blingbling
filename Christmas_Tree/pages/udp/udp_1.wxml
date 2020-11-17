@@ -1,0 +1,7 @@
+<!--pages/udp_1.wxml-->
+<text>This is udp test page</text>
+<button type="primary" bindtap="btnClick">udp connect</button>
+<button type="default">udp disconnect</button>
+
+<text>{{text}}</text>
+
