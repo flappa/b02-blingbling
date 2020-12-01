@@ -1,7 +1,13 @@
 <!--pages/udp_1.wxml-->
 <text>This is udp test page</text>
-<button type="primary" bindtap="btnClick">udp connect</button>
-<button type="default">udp disconnect</button>
+<button type="primary" bindtap="btnInit">Init</button>
+<text>\n</text>
+<button type="primary" bindtap="btnSend">Send</button>
+<text>\n</text>
+<button type="default" bindtap="btnClose">Disconnect</button>
 
-<text>{{text}}</text>
+<text>> {{text}} \n</text>
+<text>\n Rxdata: 
+  {{Rxtext}} \n
+</text>
 
