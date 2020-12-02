@@ -1,5 +1,6 @@
 <!--pages/udp_1.wxml-->
-<text>This is udp test page</text>
+<text>This is udp test page\n</text>
+
 <button type="primary" bindtap="btnInit">Init</button>
 <text>\n</text>
 <button type="primary" bindtap="btnSend">Send</button>
@@ -10,4 +11,8 @@
 <text>\n Rxdata: 
   {{Rxtext}} \n
 </text>
+
+<text>\n\n\n</text>
+<button type="primary" bindtap="btnDraw">To Draw</button>
+<text>\n</text>
 

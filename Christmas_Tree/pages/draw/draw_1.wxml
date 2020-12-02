@@ -1,0 +1,4 @@
+<!--pages/draw/draw_1.wxml-->
+<text class='user-msg'>This is draw test page </text>
+
+<canvas style="width:750rpx; height:1900rpx;" canvas-id='canvas'></canvas>

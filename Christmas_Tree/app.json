@@ -1,8 +1,9 @@
 {
   "pages": [
     "pages/udp/udp_1",
+    "pages/draw/draw_1",
     "pages/index/index",
-    "pages/logs/logs"
+    "pages/logs/logs"    
   ],
   "window": {
     "backgroundTextStyle": "light",

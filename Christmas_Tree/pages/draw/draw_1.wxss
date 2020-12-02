@@ -1,0 +1,10 @@
+/* pages/draw/draw_1.wxss */
+
+.user-msg{
+  font-size: 30rpx;
+  color: white;
+}
+
+page {
+  background-color: #000000;
+}
