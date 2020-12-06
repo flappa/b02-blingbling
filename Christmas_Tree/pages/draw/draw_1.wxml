@@ -1,4 +1,18 @@
 <!--pages/draw/draw_1.wxml-->
-<text class='user-msg'>This is draw test page </text>
+<text class='user-msg'>This is draw test page.  W: {{screenWidth}}  H: {{screenHeight}} \n</text>
+<text class='user-msg'>x: {{x_pos}}  y: {{y_pos}} \n</text>
 
-<canvas style="width:750rpx; height:1900rpx;" canvas-id='canvas'></canvas>
+<!-- <canvas bindtouchmove="handletouchmove" style="width:2*390rpx; height:2*680rpx;" canvas-id='canvas'></canvas> -->
+<!-- <canvas bindtouchmove="handletouchmove" style="width:2*{{drawWidth}}rpx; height:{{drawHeight}}rpx;" canvas-id='canvas'></canvas> -->
+<!-- <canvas style="width:2*{{drawWidth}}rpx; height:{{drawHeight}}rpx;" canvas-id='canvas'></canvas> -->
+
+<canvas canvas-id="canvas" disable-scroll='true'
+   bindtouchstart="beginStroke"
+   bindtouchmove="moveStroke"
+    bindtouchend="endStroke"
+    style="width:1000rpx;height:1400rpx"
+   ></canvas>
+
+
+<!-- <view id="id" class = "ball" bindtouchmove="handletouchmove_demo" style = "width : 60px; height : 60px; background : #545345; top:{{y_pos}}px; left: {{x_pos}}px">
+</view> -->
