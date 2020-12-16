@@ -110,7 +110,7 @@ Page({
     block_array : null,
     Rmin: 1, Rmax:6,
     start_x : 50, start_y : 20, // 树顶的位置
-    tree_x : 200, tree_y : 200, // 树显示x 和 y
+    tree_x : 200, tree_y : 550, // 树显示x 和 y
     block_x : 25, block_y : 25, // 分块x 和y
     Q : 10, // 绕线的圈数
     circle_num:0
@@ -209,12 +209,13 @@ Page({
       // 计算圆的x坐标和y坐标
       // + tree_x/2 
       var light_x = start_x + tree_x/(2*tree_y) * r * Math.sin(2* Math.PI *Q*r/tree_y)
-      var light_y = start_y + r;
+      var light_y = start_y + 0.5*r;
 
       // r+= r_step; // 优化
       r = r + this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y;
       //console.log("index:%d x:%d y:%d", light_index, light_x, light_y);
       //var block_index = Math.floor((light_x - start_x)/block_x + (light_y - start_y) * (tree_x/block_x)/block_y);
+      // 获取坐标(x,y)的 block index
       var block_index = this.getBlockIndex(light_x, light_y);
       //console.log("block index:%d", block_index);
       if(block_index >= 0 && block_index < block_nums){
@@ -226,6 +227,7 @@ Page({
       this.data.circle_num = light_index;
       //console.log("light index : %d", light_index);
     }
+    console.log("light num : %d", this.data.circle_num);
     console.log("INFO: init end");
   },
 
