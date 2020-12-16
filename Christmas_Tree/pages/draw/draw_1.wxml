@@ -6,9 +6,11 @@
 <!-- <canvas bindtouchmove="handletouchmove" style="width:2*{{drawWidth}}rpx; height:{{drawHeight}}rpx;" canvas-id='canvas'></canvas> -->
 <!-- <canvas style="width:2*{{drawWidth}}rpx; height:{{drawHeight}}rpx;" canvas-id='canvas'></canvas> -->
 
-<canvas canvas-id="canvas" disable-scroll='true'
-   bindtouchstart="beginStroke"
-   bindtouchmove="moveStroke"
+<canvas canvas-id="canvas" 
+    disable-scroll='true'
+    bindtap="bindCanvasTap"
+    bindtouchstart="beginStroke"
+    bindtouchmove="moveStroke"
     bindtouchend="endStroke"
     style="width:1000rpx;height:1400rpx"
    ></canvas>
