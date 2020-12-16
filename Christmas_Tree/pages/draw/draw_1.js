@@ -105,7 +105,7 @@ Page({
     x_pos:100,
     y_pos:500,
 
-    hardware_light_nums:100,  // 硬件上灯的书目
+    hardware_light_nums:100,  // 硬件上灯的数目
     hardware_lights_array: null, // 硬件上的灯对应的数据数组，发送数据可以从这里拿
     block_array : null,
     Rmin: 1, Rmax:6,
@@ -160,8 +160,8 @@ Page({
             screenHeight: res.windowHeight,
             screenWidth: res.windowWidth,
             drawWidth: res.windowWidth ,
-            drawHeight: res.windowHeight-50
-
+            drawHeight: res.windowHeight-50,
+            start_x: res.windowWidth / 2
           });
         }
       });
@@ -207,7 +207,8 @@ Page({
     // 当触摸到该block时，对该block中的所有的灯进行处理
     for(var r = 0, light_index = 0; r < tree_y; light_index++){
       // 计算圆的x坐标和y坐标
-      var light_x = start_x + tree_x/2 + tree_x/(2*tree_y) * r * Math.sin(2* Math.PI *Q*r/tree_y)
+      // + tree_x/2 
+      var light_x = start_x + tree_x/(2*tree_y) * r * Math.sin(2* Math.PI *Q*r/tree_y)
       var light_y = start_y + r;
 
       // r+= r_step; // 优化
