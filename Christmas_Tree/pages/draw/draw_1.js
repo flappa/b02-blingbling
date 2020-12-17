@@ -108,9 +108,9 @@ Page({
     hardware_light_nums:100,  // 硬件上灯的数目
     hardware_lights_array: null, // 硬件上的灯对应的数据数组，发送数据可以从这里拿
     block_array : null,
-    Rmin: 1, Rmax:6,
+    Rmin: 1, Rmax:7,
     start_x : 50, start_y : 20, // 树顶的位置
-    tree_x : 200, tree_y : 550, // 树显示x 和 y
+    tree_x : 200, tree_y : 300, // 树显示x 和 y
     block_x : 25, block_y : 25, // 分块x 和y
     Q : 10, // 绕线的圈数
     circle_num:0
@@ -118,21 +118,34 @@ Page({
 
   // 自定义获取坐标函数
   getBlockIndex: function(screen_x, screen_y){
+    if(screen_x > (this.data.start_x + this.data.tree_x /2)
+      || screen_y > this.data.start_y + this.data.tree_y
+      || screen_x < (this.data.start_x - this.data.tree_x /2)
+      || screen_y < this.data.start_y){
+      //console.log("just return");
+      return -1;
+    }
     var x = Math.floor(screen_x), y = Math.floor(screen_y);
-    var cols = Math.floor((x - this.data.start_x)/this.data.block_x);
+    var cols = Math.floor((x - this.data.start_x + this.data.tree_x /2)/this.data.block_x);
     var rows = Math.floor((y - this.data.start_y)/this.data.block_y);
     var one_row_cols = Math.floor(this.data.tree_x/this.data.block_x);
-    return Math.floor(cols + rows * one_row_cols);
+    var block_nums = (this.data.tree_x/this.data.block_x) * (this.data.tree_y/this.data.block_y);
+    //console.log("cols : %d, rows : %d one_row:%d max:%d", cols, rows, one_row_cols, block_nums);
+    var block_index = Math.floor(cols + rows * one_row_cols);
+
+    if(block_index >= 0 && block_index < block_nums){
+      return block_index;
+    }else{
+      console.log("ERROR: touch block_index %d out of range", block_index);
+    }
+    return -1;
   },
 
   touchProc: function(screen_x, screen_y) {
     //console.log("touch x:%d y:%d", screen_x, screen_y);
     var block_index = this.getBlockIndex(screen_x, screen_y);
-    var block_nums = (this.data.tree_x/this.data.block_x) * (this.data.tree_y/this.data.block_y);
-    if(block_index >= 0 && block_index < block_nums){
+    if(block_index != -1){
       this.data.block_array[block_index].draw_lights('yellow'); // 重绘圆图像
-    }else{
-      console.log("ERROR: touch block_index %d out of range", block_index);
     }
   },
 
@@ -161,7 +174,7 @@ Page({
             screenWidth: res.windowWidth,
             drawWidth: res.windowWidth ,
             drawHeight: res.windowHeight-50,
-            start_x: res.windowWidth / 2
+            start_x: res.windowWidth/2
           });
         }
       });
@@ -201,27 +214,24 @@ Page({
     for(var i = 0; i < block_nums; ++i){
       block_array[i] = new Block(i);
     }
-    console.log("block array size %d, block0:%d, block1:%d", block_array.length, block_array[0].index, block_array[1].index);
+    //console.log("block array size %d, block0:%d, block1:%d", block_array.length, block_array[0].index, block_array[1].index);
     
     // 计算灯的位置并填充到对应的block中
     // 当触摸到该block时，对该block中的所有的灯进行处理
-    for(var r = 0, light_index = 0; r < tree_y; light_index++){
+    for(var r = 0, light_index = 0; r < tree_y;){
       // 计算圆的x坐标和y坐标
       // + tree_x/2 
       var light_x = start_x + tree_x/(2*tree_y) * r * Math.sin(2* Math.PI *Q*r/tree_y)
-      var light_y = start_y + 0.5*r;
+      var light_y = start_y + r;
 
       // r+= r_step; // 优化
-      r = r + this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y;
+      r = r + (this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y)/2;
       //console.log("index:%d x:%d y:%d", light_index, light_x, light_y);
-      //var block_index = Math.floor((light_x - start_x)/block_x + (light_y - start_y) * (tree_x/block_x)/block_y);
       // 获取坐标(x,y)的 block index
       var block_index = this.getBlockIndex(light_x, light_y);
       //console.log("block index:%d", block_index);
-      if(block_index >= 0 && block_index < block_nums){
-        block_array[block_index].push_light(new Light(this, light_index, light_x, light_y, 'white'));
-      }else{
-        console.log("ERROR: block_index %d out of range", block_index);
+      if(block_index != -1){
+        block_array[block_index].push_light(new Light(this, light_index++, light_x, light_y, 'white'));
       }
       // 记录图中一共画了多少圆
       this.data.circle_num = light_index;
@@ -296,7 +306,7 @@ Page({
     this.touchProc(touch.x, touch.y); // 处理触摸点上的圆
 
     // 测试：单击的时候，输出一下应该发往硬件的数据，看是否正确
-    console.log(this.data.hardware_lights_array);
+    // console.log(this.data.hardware_lights_array);
   },
 
   endStroke(event) {
