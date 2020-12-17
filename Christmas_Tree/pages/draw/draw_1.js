@@ -8,6 +8,7 @@ class HardwareLight {
     this.light_index = light_index;
     this.light_color = 'white'; // 初始化灯的颜色
     this.light_switch = false;        // 初始化的灯是否是打开的
+    this.last_update_timestamp = (new Date()).valueOf();
   }
 
   getColor(){
@@ -16,6 +17,7 @@ class HardwareLight {
 
   setColor(color){
     this.light_color = color;
+    this.updateBuffer();
   }
 
   getSwitchState(){
@@ -24,6 +26,20 @@ class HardwareLight {
 
   setSwitchState(light_switch){
     this.light_switch = light_switch;
+    this.updateBuffer();
+  }
+
+  updateBuffer(){
+    // TODO：这里要防止更新的太频繁
+    var now = (new Date()).valueOf();
+    if(Math.abs(now - this.last_update_timestamp) < 300){ // 300 ms
+      return;
+    }
+    this.last_update_timestamp = now;
+    console.log(this.last_update_timestamp);
+    var key = 'light_' + this.light_index.toString();
+    wx.setStorageSync(key, {light_switch: this.light_switch, light_color: this.light_color});
+    console.log(key);
   }
 }
 
@@ -186,7 +202,6 @@ Page({
       this.isMouseDown=false
       this.lastLoc={ x: 0, y: 0 }
       this.lastLineWidth = -1;
-
   },
 
   /**
@@ -259,7 +274,15 @@ Page({
    * 生命周期函数--监听页面卸载
    */
   onUnload: function () {
-
+    // 可能需要找个地方把缓存清理掉
+    /*
+    try {
+      wx.clearStorageSync();
+    } catch(e) {
+      // Do something when catch error
+      console.log(e);
+    }
+    */
   },
 
   /**
@@ -348,6 +371,23 @@ Page({
     var touch = event.touches[0];
     // 在这里touches数组里应该是返回CanvasTouch对象，但是实际上返回了Touch对象，可以根据log判断
     //this.touchProc(touch.x, touch.y); // 处理触摸点上的圆
+
+    for(var i = 0; i < this.data.hardware_light_nums; ++i){
+      var key = 'light_' + i.toString();
+      try {
+        var light_data = wx.getStorageSync(key)
+        if (light_data) {
+          // Do something with return value
+          console.log(key);
+          console.log(light_data);
+        } else {
+          console.log("key %s not found", key);
+        }
+      } catch (e) {
+        // Do something when catch error
+        console.log(e);
+      }
+    }
     console.log("tap");
   },
 })

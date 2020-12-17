@@ -10,15 +10,37 @@ Page({
     fromIp : null,
     udp : null,
     UdpSendPort : null,
-    isFirst : 1
-    
+    isFirst : 1,
+    LightDataToSend: null,
+    LightDataLen: 100 // 硬件上灯的个数
+  },
+
+  // 收集缓存中的数据并放到LightDataToSend中
+  updateLightDataToSend: function(){
+    // 从缓存中拿出来所有的数据
+    for(var i = 0; i < this.data.LightDataLen; ++i){
+      var key = 'light_' + i.toString();
+      try {
+        var light_data = wx.getStorageSync(key)
+        if (light_data) {
+          // Do something with return value
+          this.data.LightDataToSend[i].light_color = light_data.light_color;
+          this.data.LightDataToSend[i].light_switch = light_data.light_switch;
+        } else {
+          console.log("key %s not found", key);
+        }
+      } catch (e) {
+        // Do something when catch error
+        console.log(e);
+      }
+    }
   },
   
   /**
    * 生命周期函数--监听页面加载
    */
   onLoad: function (options) {
-
+    this.data.LightDataToSend = new Array();
   },
 
   /**
