@@ -1,20 +1,24 @@
 <!--pages/draw/draw_1.wxml-->
-<text class='user-msg'>This is draw test page.  W: {{screenWidth}}  H: {{screenHeight}} \n</text>
-<text class='user-msg'>x: {{x_pos}}  y: {{y_pos}} \n</text>
+<!-- <text class='user-msg'>This is draw test page.  W: {{screenWidth}}  H: {{screenHeight}} \n</text> -->
+<!-- <text class='user-msg'>x: {{x_pos}}  y: {{y_pos}} \n</text> -->
 
 <!-- <canvas bindtouchmove="handletouchmove" style="width:2*390rpx; height:2*680rpx;" canvas-id='canvas'></canvas> -->
 <!-- <canvas bindtouchmove="handletouchmove" style="width:2*{{drawWidth}}rpx; height:{{drawHeight}}rpx;" canvas-id='canvas'></canvas> -->
 <!-- <canvas style="width:2*{{drawWidth}}rpx; height:{{drawHeight}}rpx;" canvas-id='canvas'></canvas> -->
 
-<canvas canvas-id="canvas" 
+<canvas canvas-id="canvas"
+    id="chrismas_tree"
     disable-scroll='true'
     bindtap="bindCanvasTap"
     bindtouchstart="beginStroke"
     bindtouchmove="moveStroke"
     bindtouchend="endStroke"
-    style="width:1000rpx;height:1400rpx"
-   ></canvas>
+></canvas>
 
-
+<view class="color-picker-area">
+    <view class="color-picker-bar" id="color-picker-bar" catchtouchmove="color_pick" bindtap="color_pick">
+        <view class="picker" style="left:{{picker_position}}px;"></view>
+    </view>
+</view>
 <!-- <view id="id" class = "ball" bindtouchmove="handletouchmove_demo" style = "width : 60px; height : 60px; background : #545345; top:{{y_pos}}px; left: {{x_pos}}px">
 </view> -->

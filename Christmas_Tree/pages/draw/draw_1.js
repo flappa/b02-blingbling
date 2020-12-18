@@ -36,10 +36,10 @@ class HardwareLight {
       return;
     }
     this.last_update_timestamp = now;
-    console.log(this.last_update_timestamp);
+    //console.log(this.last_update_timestamp);
     var key = 'light_' + this.light_index.toString();
     wx.setStorageSync(key, {light_switch: this.light_switch, light_color: this.light_color});
-    console.log(key);
+    //console.log(key);
   }
 }
 
@@ -52,6 +52,21 @@ class Light {
     this.y = y;
     this.r = 3;
     this.color = color;
+
+    // 初始化灯的时候，如果在缓存中存在，则使用缓存中的对象
+    /*
+    var key = 'light_' + this.index.toString();
+    try {
+      var light_data = wx.getStorageSync(key)
+      if (light_data) {
+        // Do something with return value
+        console.log(light_data);
+      }
+    } catch (e) {
+      // Do something when catch error
+      console.log(e);
+    }
+    */
   }
 
   draw(color) {
@@ -112,24 +127,94 @@ Page({
     ctx: null,
     screenHeight: 0,
     screenWidth: 0,
-    drawWidth:0,
-    drawHeight:0,
-    bulbR:10,
+
     isTap:true,
-    touchLength:0,
-    // isMouseDown:false,
     x_pos:100,
     y_pos:500,
-
+    
     hardware_light_nums:100,  // 硬件上灯的数目
     hardware_lights_array: null, // 硬件上的灯对应的数据数组，发送数据可以从这里拿
     block_array : null,
-    Rmin: 1, Rmax:7,
+    // Rmin: 1, Rmax:7, // delete
     start_x : 50, start_y : 20, // 树顶的位置
     tree_x : 200, tree_y : 300, // 树显示x 和 y
-    block_x : 25, block_y : 25, // 分块x 和y
-    Q : 10, // 绕线的圈数
-    circle_num:0
+    block_x : 20, block_y : 30, // 分块x 和y // 可以认为是触摸精度
+    Q : 13, // 绕线的圈数
+    circle_num:0, // 画圈的总个数
+    light_delta_l: 13, // 两个灯之间的距离，可以认为是圆圈的密度
+
+    // 颜色
+    pen_color : '#ffffff',     // 颜色的格式是怎样的
+    picker_position:0,   // 初始色条的位置
+    picker_left:1,
+    picker_right:1,
+  },
+
+  standerColorValue(p, q, tC) {
+    if (tC < 0) {
+      tC += 1;
+    } else if (tC > 1) {
+      tC -= 1;
+    }
+
+    if(tC < 1/6){
+      tC = p + ((q-p)*6*tC);
+    }else if(tC >=1/6 && tC < 1/2){
+      tC = q;
+    }else if(tC >= 1/2 && tC < 2/3){
+      tC = p + ((q-p)*6*(2/3-tC));
+    }else{
+      tC = p;
+    }
+    return tC;
+  },
+
+  HSLToRGB(H, S, L){
+    var q;
+    if(L < 1/2){
+      q = L * (1+S);
+    } else {
+      q = L + S - (L*S);
+    }
+    var p = 2 * L - q;
+    var Hk = H/360;
+    var tR = Hk + 1/3;
+    var tG = Hk;
+    var tB = Hk - 1/3;
+
+    tR = this.standerColorValue(p, q, tR);
+    tG = this.standerColorValue(p, q, tG);
+    tB = this.standerColorValue(p, q, tB);
+    return {R:Math.floor(tR*255), G:Math.floor(tG*255), B:Math.floor(tB*255)};
+  },
+
+  RGBToHex(R, G, B){
+    let hex = ((R << 16) | (G << 8) | B).toString(16)
+      if (hex.length < 6) {
+        hex = `${'0'.repeat(6-hex.length)}${hex}`
+      }
+      if (hex == '0') {
+        hex = '000000'
+      }
+      return `#${hex}`
+  },
+
+  color_pick(e) {
+    var picker_width = this.data.picker_right - this.data.picker_left;
+    let picker_x = Math.floor(e.changedTouches[0].pageX - this.data.picker_left);
+    picker_x = Math.min(picker_x, picker_width-3);
+    picker_x = Math.max(picker_x, -3);
+    //console.log("pick index : %d", picker_x);
+    this.setData({
+      picker_position: picker_x // 图像上设置值
+    })
+    var color = this.HSLToRGB(Math.floor((picker_x+3)*360/picker_width), 1, 0.5);
+    //console.log(color);
+    this.data.pen_color = this.RGBToHex(color.R, color.G, color.B);
+
+    // 这里需要保存画笔的位置和画笔的颜色
+    var key = 'light_pen';
+    wx.setStorageSync(key, {light_pen_index: picker_x, light_pen_color: this.data.pen_color});
   },
 
   // 自定义获取坐标函数
@@ -161,7 +246,7 @@ Page({
     //console.log("touch x:%d y:%d", screen_x, screen_y);
     var block_index = this.getBlockIndex(screen_x, screen_y);
     if(block_index != -1){
-      this.data.block_array[block_index].draw_lights('yellow'); // 重绘圆图像
+      this.data.block_array[block_index].draw_lights(this.data.pen_color); // 重绘圆图像
     }
   },
 
@@ -188,20 +273,38 @@ Page({
           _this.setData({
             screenHeight: res.windowHeight,
             screenWidth: res.windowWidth,
-            drawWidth: res.windowWidth ,
-            drawHeight: res.windowHeight-50,
-            start_x: res.windowWidth/2
+
+            start_x: res.windowWidth / 2,
+            start_y: res.windowHeight / 15, // 初始位置的计算
+
+            tree_x: res.windowWidth*2/3,
+            tree_y: res.windowHeight*3/7,   // 树的大小计算
           });
         }
       });
-      console.log(this.data.screenWidth);
-      console.log(this.data.screenHeight);
-      console.log(this.data.drawWidth);
-      console.log(this.data.drawHeight);
+      //console.log(this.data.screenWidth);
+      //console.log(this.data.screenHeight);
 
-      this.isMouseDown=false
-      this.lastLoc={ x: 0, y: 0 }
-      this.lastLineWidth = -1;
+      this.isMouseDown = false;
+      this.lastLoc = { x: 0, y: 0 };
+
+      this.data.block_x = this.data.tree_x / 10;          //横向分为10个区域
+      this.data.Q = Math.floor(this.data.tree_y / 20);    // 计算灯绕几圈在手机屏上显示好看
+      this.data.block_y = this.data.tree_y / this.data.Q; //纵向分为Q个区域,保证每一圈可以单独涂色
+
+      var query = wx.createSelectorQuery();
+      //选择id
+      query.select('#color-picker-bar').boundingClientRect();
+      query.exec(function(rect){
+        _this.setData({
+          picker_left: rect[0].left,
+          picker_right: rect[0].right,
+        });
+        //_this.data.picker_left = rect[0].left;
+        //_this.data.picker_right = rect[0].right;
+      });
+      //console.log(this.data.picker_left);
+      //console.log(this.data.picker_right);
   },
 
   /**
@@ -216,6 +319,23 @@ Page({
     var Q = this.data.Q; // 绕线的圈数
     var r_step = 3; // 步长
 
+    try {
+      var light_pen_data = wx.getStorageSync('light_pen')
+      if (light_pen_data) {
+        // Do something with return value
+        console.log(light_pen_data)
+        this.setData({
+          picker_position: light_pen_data.light_pen_index, // 图像上设置值
+          pen_color: light_pen_data.light_pen_color,
+        })
+        //this.data.picker_position = ;
+        //this.data.pen_color = ;
+      }
+    } catch (e) {
+      // Do something when catch error
+      console.log(e);
+    }
+
     // 硬件上灯的个数
     this.data.hardware_lights_array = new Array();
     for(var i = 0; i < this.data.hardware_light_nums; ++i){
@@ -225,7 +345,7 @@ Page({
     // 将画树的区域定义为block，生成所有的block对象
     this.data.block_array = new Array();
     var block_array = this.data.block_array;
-    var block_nums = (tree_x/block_x) * (tree_y/block_y);
+    var block_nums = Math.ceil(tree_x/block_x) * Math.ceil(tree_y/block_y);
     for(var i = 0; i < block_nums; ++i){
       block_array[i] = new Block(i);
     }
@@ -233,14 +353,16 @@ Page({
     
     // 计算灯的位置并填充到对应的block中
     // 当触摸到该block时，对该block中的所有的灯进行处理
-    for(var r = 0, light_index = 0; r < tree_y;){
+    for(var r = 1, light_index = 0; r < tree_y;){
       // 计算圆的x坐标和y坐标
       // + tree_x/2 
       var light_x = start_x + tree_x/(2*tree_y) * r * Math.sin(2* Math.PI *Q*r/tree_y)
       var light_y = start_y + r;
-
       // r+= r_step; // 优化
-      r = r + (this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y)/2;
+      //r = r + (this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y)/2;
+      r = r + Math.min(10, (this.data.light_delta_l * this.data.tree_y * this.data.tree_y) / (Math.PI * this.data.tree_x * Q * r));
+      //(this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y)/2;
+
       //console.log("index:%d x:%d y:%d", light_index, light_x, light_y);
       // 获取坐标(x,y)的 block index
       var block_index = this.getBlockIndex(light_x, light_y);
@@ -358,7 +480,6 @@ Page({
       this.setData ({
         x_pos: curLoc.x,
         y_pos: curLoc.y,
-        // touchLength:  event.touches.length,
       });
     }
   },
@@ -378,14 +499,14 @@ Page({
         var light_data = wx.getStorageSync(key)
         if (light_data) {
           // Do something with return value
-          console.log(key);
-          console.log(light_data);
+          //console.log(key);
+          //console.log(light_data);
         } else {
           console.log("key %s not found", key);
         }
       } catch (e) {
         // Do something when catch error
-        console.log(e);
+        //console.log(e);
       }
     }
     console.log("tap");

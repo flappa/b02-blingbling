@@ -1,5 +1,4 @@
 /* pages/draw/draw_1.wxss */
-
 .user-msg{
   font-size: 30rpx;
   color: white;
@@ -7,4 +6,40 @@
 
 page {
   background-color: #000000;
+  width: 750rpx;
+  height:100%;
+}
+
+#chrismas_tree {
+  position: relative;
+  width: 100%;
+  height: 75%;
+}
+
+.color-picker-area {
+  width: 100%;
+  height: 25%;
+}
+/* 圣诞树的位置和颜色选择区域加起来100% */
+
+.color-picker-bar {
+  left: 10%;
+  right: 10%;
+  top: 40%;
+  bottom: 40%;
+  position: relative;
+  width: 80%;
+  height: 20%;
+  border-radius: 15rpx;
+  background: -webkit-linear-gradient(left, #ff0000 0%, #ffff00 17%, #00ff00 33%, #00ffff 50%, #0000ff 67%, #ff00ff 83%, #ff0000 100%);
+}
+
+.picker {
+  top: -15%;
+  position: absolute;
+  z-index: 10;
+  width: 12rpx;
+  height: 130%;
+  border: 3rpx solid white;
+  border-radius: 5rpx;
 }
