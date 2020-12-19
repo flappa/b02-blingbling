@@ -165,6 +165,7 @@ Page({
    * 页面的初始数据
    */
   data: {
+    version: 1,
     ctx: null,
     screenHeight: 0,
     screenWidth: 0,
@@ -331,6 +332,11 @@ Page({
     this.setData({ctx: wx.createCanvasContext('canvas')});
     var Q = this.data.Q; // 绕线的圈数
     try {
+      var version = wx.getStorageSync('version')
+      if (!version || version != this.data.version) {
+        wx.clearStorageSync();
+      }
+
       var light_pen_data = wx.getStorageSync('light_pen')
       if (light_pen_data) {
         // Do something with return value
@@ -339,6 +345,7 @@ Page({
           pen_color : light_pen_data.pen_color,
         })
       }
+
     } catch (e) {
       // Do something when catch error
       console.log(e);
