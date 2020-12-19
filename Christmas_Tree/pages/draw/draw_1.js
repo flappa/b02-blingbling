@@ -75,47 +75,6 @@ class LightStringControl {
   }
 }
 
-// 硬件上的灯对象
-class HardwareLight {
-  constructor(light_index) {
-    this.light_index = light_index;
-    this.light_color = 'white'; // 初始化灯的颜色
-    this.light_switch = false;        // 初始化的灯是否是打开的
-    this.last_update_timestamp = (new Date()).valueOf();
-  }
-
-  getColor(){
-    return this.light_color;
-  }
-
-  setColor(color){
-    this.light_color = color;
-    this.updateBuffer();
-  }
-
-  getSwitchState(){
-    return this.light_switch;
-  }
-
-  setSwitchState(light_switch){
-    this.light_switch = light_switch;
-    this.updateBuffer();
-  }
-
-  updateBuffer(){
-    // TODO：这里要防止更新的太频繁
-    var now = (new Date()).valueOf();
-    if(Math.abs(now - this.last_update_timestamp) < 300){ // 300 ms
-      return;
-    }
-    this.last_update_timestamp = now;
-    //console.log(this.last_update_timestamp);
-    var key = 'light_' + this.light_index.toString();
-    wx.setStorageSync(key, {light_switch: this.light_switch, light_color: this.light_color});
-    //console.log(key);
-  }
-}
-
 // 灯的对象
 class Light {
   constructor(page, index, x, y, color) {
@@ -127,21 +86,18 @@ class Light {
     this.color = color;
 
     // 初始化灯的时候，如果在缓存中存在，则使用缓存中的对象
-    /*
-    var key = 'light_' + this.index.toString();
+    var key = 'light_circle_' + this.index.toString();
     try {
       var light_data = wx.getStorageSync(key)
       if (light_data) {
-        // Do something with return value
         console.log(light_data);
+        this.color = light_data.light_circle_color;
       }
     } catch (e) {
-      // Do something when catch error
       console.log(e);
     }
-    */
   }
-
+  
   //hex format: '#ffffff'
   RGBToHex(R, G, B){
     let hex = ((R << 16) | (G << 8) | B).toString(16)
@@ -154,28 +110,34 @@ class Light {
       return `#${hex}`
   }
 
-  draw(color) {
+  setColor(color){
+    this.color = color;
+  }
+
+  // 画圆圈，颜色
+  draw() {
     // 画圆
-    var color_hex = this.RGBToHex(color.R, color.G, color.B)
+    // console.log(this.color)
     this.page.data.ctx.arc(this.x, this.y + this.r*2, this.r, 0, 2*Math.PI,false)
-    this.page.data.ctx.setStrokeStyle(color_hex)
+    this.page.data.ctx.setStrokeStyle(this.RGBToHex(this.color.R, this.color.G, this.color.B))
     this.page.data.ctx.stroke()
     this.page.data.ctx.draw(true)
 
-    // 画圆的时候顺便更新一下数据
+    // 画圆的时候更新一下缓存中对应圆的数据
+    var key = 'light_circle_' + this.index.toString();
+    wx.setStorageSync(key, {light_circle_color: this.color});
+
+    // 更新一下硬件的数据
     // 将图像中的圆的位置映射到硬件的灯中
     var hardware_light_index_array = this.page.light_circle_to_hardware(this.index);
-
     // 处理每一个应该更新的硬件
+    var last_index = -1;
     hardware_light_index_array.forEach(light_index => {
-      this.page.data.light_string_control.setColor(this.index, color);
-
-      // if(light_index >= 0 && light_index < this.page.data.hardware_lights_array.length){
-      //   // 设置硬件上的灯的颜色
-      //   this.page.data.hardware_lights_array[light_index].setColor(color);
-      //   // 设置硬件上的灯为点亮状态
-      //   this.page.data.hardware_lights_array[light_index].setSwitchState(true);
-      // }
+      if(last_index == -1 || last_index != light_index){
+        // 过滤掉映射到相同的灯
+        last_index = light_index;
+        this.page.data.light_string_control.setColor(light_index, this.color);
+      }
     });
   }
 }
@@ -191,18 +153,19 @@ class Block {
   push_light(light){
     this.lights.push(light);
     // 添加到数组中时，顺便把自己画出来
-    light.draw({R:255, G:255, B:255}); //white
+    light.draw();
     if(this.used == false){
       this.used = true;
     }
   }
 
-  draw_lights(color){
+  draw_lights_with_color(color){
     if(this.used == false){
       return;
     }
     this.lights.forEach(light => {
-      light.draw(color);
+      light.setColor(color);
+      light.draw();
     });
   }
 }
@@ -217,83 +180,64 @@ Page({
     screenHeight: 0,
     screenWidth: 0,
 
-    isTap:true,
-    x_pos:100,
-    y_pos:500,
+    // 硬件灯的相关数据
+    hardware_light_nums:100,      // 硬件上灯的数目
+    light_string_control: null,   //硬件灯串， todo:替换掉 hardware_lights_array
     
-    hardware_light_nums:100,  // 硬件上灯的数目
-    hardware_lights_array: null, // 硬件上的灯对应的数据数组，发送数据可以从这里拿
-    light_string_control: null, //硬件灯串， todo:替换掉 hardware_lights_array
+    // 画面上树的位置和数据
     block_array : null,
-    // Rmin: 1, Rmax:7, // delete
-    start_x : 50, start_y : 20, // 树顶的位置
-    tree_x : 200, tree_y : 300, // 树显示x 和 y
-    block_x : 20, block_y : 30, // 分块x 和y // 可以认为是触摸精度
-    Q : 13, // 绕线的圈数
-    circle_num:0, // 画圈的总个数
-    light_delta_l: 13, // 两个灯之间的距离，可以认为是圆圈的密度
+    block_x : 20, block_y : 30,   // 分块的宽x和高y；可以认为是触摸精度
+    start_x : 50, start_y : 20,   // 树顶的位置
+    tree_x : 200, tree_y : 300,   // 树显示x 和 y
+    /* 灯曲线的密度 */
+    Q : 6,                        // 灯线绕了几圈
+    light_delta_l: 40,            // 两个灯之间的距离，可以认为是圆圈的密度
+    circle_num:0,                 // 画圈的总个数,作为输出数据
 
-    // 颜色
-    pen_color : {R:255, G:255, B:255},     // 颜色的格式是怎样的
-    picker_position:0,   // 初始色条的位置
-    picker_left:1,
-    picker_right:1,
+    // 色条与画笔颜色
+    pen_color : {R:255, G:255, B:255},    // 默认使用白色
+    // 绘画选择板组件数据
+    colorData: {
+      //基础色相，即左侧色盘右上顶点的颜色，由右侧的色相条控制
+      hueData: {
+          colorStopRed: 255,
+          colorStopGreen: 0,
+          colorStopBlue: 0,
+      },
+      //选择点的信息（左侧色盘上的小圆点，即你选择的颜色）
+      pickerData: {
+          x: 0, //选择点x轴偏移量
+          y: 480, //选择点y轴偏移量
+          red: 0, 
+          green: 0,
+          blue: 0, 
+          hex: '#000000'
+      },
+      //色相控制条的位置
+      barY: 0
+    },
+    rpxRatio: 1 //此值为你的屏幕CSS像素宽度/750，单位rpx实际像素
   },
 
-  standerColorValue(p, q, tC) {
-    if (tC < 0) {
-      tC += 1;
-    } else if (tC > 1) {
-      tC -= 1;
-    }
-
-    if(tC < 1/6){
-      tC = p + ((q-p)*6*tC);
-    }else if(tC >=1/6 && tC < 1/2){
-      tC = q;
-    }else if(tC >= 1/2 && tC < 2/3){
-      tC = p + ((q-p)*6*(2/3-tC));
-    }else{
-      tC = p;
-    }
-    return tC;
-  },
-
-  HSLToRGB(H, S, L){
-    var q;
-    if(L < 1/2){
-      q = L * (1+S);
-    } else {
-      q = L + S - (L*S);
-    }
-    var p = 2 * L - q;
-    var Hk = H/360;
-    var tR = Hk + 1/3;
-    var tG = Hk;
-    var tB = Hk - 1/3;
-
-    tR = this.standerColorValue(p, q, tR);
-    tG = this.standerColorValue(p, q, tG);
-    tB = this.standerColorValue(p, q, tB);
-    return {R:Math.floor(tR*255), G:Math.floor(tG*255), B:Math.floor(tB*255)};
-  },
-
-  color_pick(e) {
-    var picker_width = this.data.picker_right - this.data.picker_left;
-    let picker_x = Math.floor(e.changedTouches[0].pageX - this.data.picker_left);
-    picker_x = Math.min(picker_x, picker_width-3);
-    picker_x = Math.max(picker_x, -3);
-    //console.log("pick index : %d", picker_x);
+  //选择改色时触发（在左侧色盘触摸或者切换右侧色相条）
+  onChangeColor(e) {
+    //返回的信息在e.detail.colorData中
     this.setData({
-      picker_position: picker_x // 图像上设置值
+      colorData: e.detail.colorData
     })
-    var color = this.HSLToRGB(Math.floor((picker_x+3)*360/picker_width), 1, 0.5);
-    //console.log(color);
-    this.data.pen_color = color;
+
+    // 改变画笔的颜色
+    this.data.pen_color.R = this.data.colorData.pickerData.red;
+    this.data.pen_color.G = this.data.colorData.pickerData.green;
+    this.data.pen_color.B = this.data.colorData.pickerData.blue;
 
     // 这里需要保存画笔的位置和画笔的颜色
     var key = 'light_pen';
-    wx.setStorageSync(key, {light_pen_index: picker_x, light_pen_color: this.data.pen_color});
+    wx.setStorageSync(key, {pen_color: this.data.pen_color});
+  },
+
+  getBlockNums: function(){
+    return Math.ceil(this.data.tree_x/this.data.block_x) * Math.ceil(this.data.tree_y/this.data.block_y);
   },
 
   // 自定义获取坐标函数
@@ -309,7 +253,7 @@ Page({
     var cols = Math.floor((x - this.data.start_x + this.data.tree_x /2)/this.data.block_x);
     var rows = Math.floor((y - this.data.start_y)/this.data.block_y);
     var one_row_cols = Math.floor(this.data.tree_x/this.data.block_x);
-    var block_nums = (this.data.tree_x/this.data.block_x) * (this.data.tree_y/this.data.block_y);
+    var block_nums = this.getBlockNums();
     //console.log("cols : %d, rows : %d one_row:%d max:%d", cols, rows, one_row_cols, block_nums);
     var block_index = Math.floor(cols + rows * one_row_cols);
 
@@ -325,10 +269,11 @@ Page({
     //console.log("touch x:%d y:%d", screen_x, screen_y);
     var block_index = this.getBlockIndex(screen_x, screen_y);
     if(block_index != -1){
-      this.data.block_array[block_index].draw_lights(this.data.pen_color); // 重绘圆图像
+      this.data.block_array[block_index].draw_lights_with_color(this.data.pen_color); // 重绘圆图像
     }
   },
 
+  // 为了让圆圈和硬件灯对应的更均匀
   light_circle_to_hardware: function(light_index){
     // 由于图中的圆可能比灯少，先将图中的圆个数映射到1000以上
     var K = Math.ceil(1000/this.data.circle_num);
@@ -358,6 +303,8 @@ Page({
 
             tree_x: res.windowWidth*2/3,
             tree_y: res.windowHeight*3/7,   // 树的大小计算
+
+            rpxRatio: res.screenWidth / 750, // color picker 组件的数据
           });
         }
       });
@@ -368,22 +315,8 @@ Page({
       this.lastLoc = { x: 0, y: 0 };
 
       this.data.block_x = this.data.tree_x / 10;          //横向分为10个区域
-      this.data.Q = Math.floor(this.data.tree_y / 20);    // 计算灯绕几圈在手机屏上显示好看
+      this.data.Q = Math.floor(this.data.tree_y / 50);    // 计算灯绕几圈在手机屏上显示好看
       this.data.block_y = this.data.tree_y / this.data.Q; //纵向分为Q个区域,保证每一圈可以单独涂色
-
-      var query = wx.createSelectorQuery();
-      //选择id
-      query.select('#color-picker-bar').boundingClientRect();
-      query.exec(function(rect){
-        _this.setData({
-          picker_left: rect[0].left,
-          picker_right: rect[0].right,
-        });
-        //_this.data.picker_left = rect[0].left;
-        //_this.data.picker_right = rect[0].right;
-      });
-      //console.log(this.data.picker_left);
-      //console.log(this.data.picker_right);
   },
 
   /**
@@ -391,34 +324,19 @@ Page({
    */
   onReady: function () {    
     this.setData({ctx: wx.createCanvasContext('canvas')});
-
-    var start_x = this.data.start_x, start_y = this.data.start_y; // 树顶的位置
-    var tree_x = this.data.tree_x, tree_y = this.data.tree_y; // 树显示x 和 y
-    var block_x = this.data.block_x, block_y = this.data.block_y; // 分块x 和y
     var Q = this.data.Q; // 绕线的圈数
-    var r_step = 3; // 步长
-
     try {
       var light_pen_data = wx.getStorageSync('light_pen')
       if (light_pen_data) {
         // Do something with return value
         console.log(light_pen_data)
         this.setData({
-          picker_position: light_pen_data.light_pen_index, // 图像上设置值
-          pen_color: light_pen_data.light_pen_color,
+          pen_color : light_pen_data.pen_color,
         })
-        //this.data.picker_position = ;
-        //this.data.pen_color = ;
       }
     } catch (e) {
       // Do something when catch error
       console.log(e);
-    }
-
-    // 硬件上灯的个数
-    this.data.hardware_lights_array = new Array();
-    for(var i = 0; i < this.data.hardware_light_nums; ++i){
-      this.data.hardware_lights_array[i] = new HardwareLight(i);
     }
 
     //硬件灯串
@@ -429,38 +347,31 @@ Page({
 
     // 将画树的区域定义为block，生成所有的block对象
     this.data.block_array = new Array();
-    var block_array = this.data.block_array;
-    var block_nums = Math.ceil(tree_x/block_x) * Math.ceil(tree_y/block_y);
+    var block_nums = this.getBlockNums();
     for(var i = 0; i < block_nums; ++i){
-      block_array[i] = new Block(i);
+      this.data.block_array[i] = new Block(i);
     }
-    //console.log("block array size %d, block0:%d, block1:%d", block_array.length, block_array[0].index, block_array[1].index);
+    // console.log("block array size %d, block0:%d, block1:%d", block_array.length, block_array[0].index, block_array[1].index);
     
-    // 计算灯的位置并填充到对应的block中
+    // 计算灯的位置，生成对应灯对象，并填充到对应的block中
     // 当触摸到该block时，对该block中的所有的灯进行处理
-    for(var r = 1, light_index = 0; r < tree_y;){
+    for(var r = 1, light_index = 0; r < this.data.tree_y;){
       // 计算圆的x坐标和y坐标
-      // + tree_x/2 
-      var light_x = start_x + tree_x/(2*tree_y) * r * Math.sin(2* Math.PI *Q*r/tree_y)
-      var light_y = start_y + r;
-      // r+= r_step; // 优化
-      //r = r + (this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y)/2;
+      var light_x = this.data.start_x + this.data.tree_x/(2*this.data.tree_y) * r * Math.sin(2* Math.PI *Q*r/this.data.tree_y)
+      var light_y = this.data.start_y + r;
       r = r + Math.min(10, (this.data.light_delta_l * this.data.tree_y * this.data.tree_y) / (Math.PI * this.data.tree_x * Q * r));
-      //(this.data.Rmax - ((this.data.Rmax-this.data.Rmin) * r)/this.data.tree_y)/2;
 
       //console.log("index:%d x:%d y:%d", light_index, light_x, light_y);
       // 获取坐标(x,y)的 block index
       var block_index = this.getBlockIndex(light_x, light_y);
       //console.log("block index:%d", block_index);
       if(block_index != -1){
-        block_array[block_index].push_light(new Light(this, light_index++, light_x, light_y, 'white'));
+        this.data.block_array[block_index].push_light(new Light(this, light_index++, light_x, light_y, {R:255, G:255, B:255}));
       }
       // 记录图中一共画了多少圆
       this.data.circle_num = light_index;
-      //console.log("light index : %d", light_index);
     }
     console.log("light num : %d", this.data.circle_num);
-    console.log("INFO: init end");
   },
 
   /**
@@ -514,25 +425,12 @@ Page({
   },
 
   handletouchmove_demo: function(event) {
-    this.setData ({
-      x_pos: event.touches[0].pageX,
-      y_pos: event.touches[0].pageY,
-    });
   },
 
   beginStroke(event) {
     //console.log(event)
-    var touch = event.touches[0];
-    var curLoc = { x: touch.x, y: touch.y };
-    this.setData ({
-      x_pos: curLoc.x,
-      y_pos: curLoc.y,
-    });
-
     this.isMouseDown = true
-    this.lastLoc = { x: event.touches[0].x, y: event.touches[0].y }
-    this.setData({ isTap: true })
-
+    var touch = event.touches[0];
     this.touchProc(touch.x, touch.y); // 处理触摸点上的圆
 
     // 测试：单击的时候，输出一下应该发往硬件的数据，看是否正确
@@ -545,39 +443,20 @@ Page({
   },
 
   moveStroke(event) {
+    //console.log(event)
     if (this.isMouseDown && event.touches.length == 1) {
-      //console.log(event)
       var touch = event.touches[0];
-      var curLoc = { x: touch.x, y: touch.y };
-      this.setData ({
-        x_pos: curLoc.x,
-        y_pos: curLoc.y,
-      });
-
       this.touchProc(touch.x, touch.y); // 处理触摸轨迹上的圆
-
-      this.lastLoc=curLoc;
-    } else if (event.touches.length > 1){
-      //console.log(event)
-      this.setData({isTap:false})
-      var touch = event.touches[0];
-      var curLoc = { x: touch.x, y: touch.y };
-      this.setData ({
-        x_pos: curLoc.x,
-        y_pos: curLoc.y,
-      });
     }
   },
 
   bindCanvasTap: function (event) {
-    if(event.type != "tap"){
-      return;
-    }
-    console.log(event)
-    var touch = event.touches[0];
+    //console.log(event)
+    //var touch = event.touches[0];
     // 在这里touches数组里应该是返回CanvasTouch对象，但是实际上返回了Touch对象，可以根据log判断
     //this.touchProc(touch.x, touch.y); // 处理触摸点上的圆
 
+    /* 硬件数据读测试
     for(var i = 0; i < this.data.hardware_light_nums; ++i){
       var key = 'light_' + i.toString();
       try {
@@ -587,14 +466,15 @@ Page({
           //console.log(key);
           //console.log(light_data);
         } else {
-          //console.log("key %s not found", key);
+          console.log("key %s not found", key);
         }
       } catch (e) {
         // Do something when catch error
         //console.log(e);
       }
     }
-    console.log("tap");
+    */
+    // console.log("tap");
   },
 })
 

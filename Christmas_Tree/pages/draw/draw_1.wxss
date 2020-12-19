@@ -13,21 +13,30 @@ page {
 #chrismas_tree {
   position: relative;
   width: 100%;
-  height: 75%;
+  height: 60%;
 }
 
+.color-picker {
+  position: relative;
+  left: 10%;
+  right: 10%;
+  bottom: 10%;
+  width: 60%;
+}
+/*
 .color-picker-area {
   width: 100%;
   height: 25%;
 }
+*/
 /* 圣诞树的位置和颜色选择区域加起来100% */
-
+/*
 .color-picker-bar {
+  position: relative;
   left: 10%;
-  right: 10%;
+  right: 20%;
   top: 40%;
   bottom: 40%;
-  position: relative;
   width: 80%;
   height: 20%;
   border-radius: 15rpx;
@@ -35,11 +44,22 @@ page {
 }
 
 .picker {
-  top: -15%;
   position: absolute;
+  top: -15%;
   z-index: 10;
   width: 12rpx;
   height: 130%;
   border: 3rpx solid white;
   border-radius: 5rpx;
 }
+*/
+/*
+.refresh-black-button {
+  position: absolute;
+  left: 105%;
+  height: 90%;
+  width: 10%;
+  border: 5rpx solid white;
+  border-radius: 100%;
+}
+*/

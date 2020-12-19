@@ -15,10 +15,13 @@
     bindtouchend="endStroke"
 ></canvas>
 
+<color-picker class="color-picker" colorData="{{colorData}}" rpxRatio="{{rpxRatio}}" bindchangecolor="onChangeColor"></color-picker>
+<!-- 
 <view class="color-picker-area">
     <view class="color-picker-bar" id="color-picker-bar" catchtouchmove="color_pick" bindtap="color_pick">
         <view class="picker" style="left:{{picker_position}}px;"></view>
     </view>
 </view>
+ -->
 <!-- <view id="id" class = "ball" bindtouchmove="handletouchmove_demo" style = "width : 60px; height : 60px; background : #545345; top:{{y_pos}}px; left: {{x_pos}}px">
 </view> -->
