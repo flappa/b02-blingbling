@@ -10,6 +10,7 @@ class LightStringControl {
     this.udp_addr = udp_addr;
     this.udp_port = udp_port;
     this.udp = null;
+    this.timer = null;
     this.reset();
   }
   
@@ -37,6 +38,14 @@ class LightStringControl {
     this.host_udp_port = this.udp.bind()
     console.log(this.udp)
     console.log("host_udp_port is %d", this.host_udp_port)
+
+    if(null != this.timer) {
+      clearInterval(this.timer);
+    }
+
+    this.timer = setInterval(this.sync, 20, this); //20ms = 50Hz
+
+    console.log("creat timer %d", this.timer)
   }
 
   setHeader(version, timeout) {
@@ -54,23 +63,20 @@ class LightStringControl {
     this.data_buf[data_index + 3] = color.B; //B
 
     this.change_cnt ++;
-    this.sync();
   }
 
-  sync() {
+  sync(who) {
     //update in loop
-    var now = (new Date()).valueOf();
-    if(0 == this.change_cnt || Math.abs(now - this.last_update_timestamp) < 50){ // 50 ms
+    
+    if(0 == who.change_cnt || null == who.udp) {
       return;
     }
-    this.last_update_timestamp = now;
-    this.change_cnt = 0;
 
-    var send_data = this.data_buf;
-    this.udp.send({
-      address: this.udp_addr, 
-      port: this.udp_port,
-      message: send_data
+    who.change_cnt = 0;
+    who.udp.send({
+      address: who.udp_addr, 
+      port: who.udp_port,
+      message: who.data_buf
     });
   }
 }
@@ -97,18 +103,6 @@ class Light {
       console.log(e);
     }
   }
-  
-  //hex format: '#ffffff'
-  RGBToHex(R, G, B){
-    let hex = ((R << 16) | (G << 8) | B).toString(16)
-      if (hex.length < 6) {
-        hex = `${'0'.repeat(6-hex.length)}${hex}`
-      }
-      if (hex == '0') {
-        hex = '000000'
-      }
-      return `#${hex}`
-  }
 
   setColor(color){
     this.color = color;
@@ -119,7 +113,7 @@ class Light {
     // 画圆
     // console.log(this.color)
     this.page.data.ctx.arc(this.x, this.y + this.r*2, this.r, 0, 2*Math.PI,false)
-    this.page.data.ctx.setStrokeStyle(this.RGBToHex(this.color.R, this.color.G, this.color.B))
+    this.page.data.ctx.setStrokeStyle(this.color.Hex)
     this.page.data.ctx.stroke()
     this.page.data.ctx.draw(true)
 
@@ -131,13 +125,8 @@ class Light {
     // 将图像中的圆的位置映射到硬件的灯中
     var hardware_light_index_array = this.page.light_circle_to_hardware(this.index);
     // 处理每一个应该更新的硬件
-    var last_index = -1;
     hardware_light_index_array.forEach(light_index => {
-      if(last_index == -1 || last_index != light_index){
-        // 过滤掉映射到相同的灯
-        last_index = light_index;
         this.page.data.light_string_control.setColor(light_index, this.color);
-      }
     });
   }
 }
@@ -182,7 +171,7 @@ Page({
 
     // 硬件灯的相关数据
     hardware_light_nums:100,      // 硬件上灯的数目
-    light_string_control: null,   //硬件灯串， todo:替换掉 hardware_lights_array
+    light_string_control: null,   //硬件灯串
     
     // 画面上树的位置和数据
     block_array : null,
@@ -195,7 +184,7 @@ Page({
     circle_num:0,                 // 画圈的总个数,作为输出数据
 
     // 色条与画笔颜色
-    pen_color : {R:255, G:255, B:255},    // 默认使用白色
+    pen_color : {R:255, G:255, B:255, Hex: '#ffffff'},    // 默认使用白色
     // 绘画选择板组件数据
     colorData: {
       //基础色相，即左侧色盘右上顶点的颜色，由右侧的色相条控制
@@ -219,6 +208,18 @@ Page({
     rpxRatio: 1 //此值为你的屏幕CSS像素宽度/750，单位rpx实际像素
   },
 
+  //hex format: '#ffffff'
+  RGBToHex(R, G, B){
+    let hex = ((R << 16) | (G << 8) | B).toString(16)
+      if (hex.length < 6) {
+        hex = `${'0'.repeat(6-hex.length)}${hex}`
+      }
+      if (hex == '0') {
+        hex = '000000'
+      }
+      return `#${hex}`
+  },
+
   //选择改色时触发（在左侧色盘触摸或者切换右侧色相条）
   onChangeColor(e) {
     //返回的信息在e.detail.colorData中
@@ -230,6 +231,10 @@ Page({
     this.data.pen_color.R = this.data.colorData.pickerData.red;
     this.data.pen_color.G = this.data.colorData.pickerData.green;
     this.data.pen_color.B = this.data.colorData.pickerData.blue;
+    this.data.pen_color.Hex = this.RGBToHex(
+      this.data.pen_color.R, 
+      this.data.pen_color.G, 
+      this.data.pen_color.B)
 
     // 这里需要保存画笔的位置和画笔的颜色
     var key = 'light_pen';
@@ -366,7 +371,7 @@ Page({
       var block_index = this.getBlockIndex(light_x, light_y);
       //console.log("block index:%d", block_index);
       if(block_index != -1){
-        this.data.block_array[block_index].push_light(new Light(this, light_index++, light_x, light_y, {R:255, G:255, B:255}));
+        this.data.block_array[block_index].push_light(new Light(this, light_index++, light_x, light_y, this.data.pen_color));
       }
       // 记录图中一共画了多少圆
       this.data.circle_num = light_index;
