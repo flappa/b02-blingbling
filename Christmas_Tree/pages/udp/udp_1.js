@@ -94,8 +94,7 @@ Page({
 
   // udp 按键
   btnInit : function(){
-    console.log("btn 0 is clicked")
-    console.log("udp init")
+    console.log("btn init is clicked")
     if(this.data.isFirst)
     {
       this.setData({udp: wx.createUDPSocket()});
@@ -109,6 +108,9 @@ Page({
 
       this.data.udp.onListening(this.data.udp.onMessage)
       this.setData({isFirst: 0});
+    }
+    else{
+      console.log("already init")
     }
 
 
@@ -127,35 +129,33 @@ Page({
   },
 
   btnSend : function(){
-    console.log("btn 1 is clicked")
-    // wx.getSystemInfo({
-    //   success (res) {
-    //     console.log(res.model)
-    //     console.log(res.pixelRatio)
-    //     console.log(res.windowWidth)
-    //     console.log(res.windowHeight)
-    //     console.log(res.language)
-    //     console.log(res.version)
-    //     console.log(res.platform)
-    //   }
-    // })
-    
+    console.log("btn send is clicked")
     this.setData({text:"udp connect start"})
 
     console.log("isFirst: %d", this.data.isFirst)
-    console.log("here")
+
+    //send_data = (struct.pack('>BB', 1, 255))
+    //send_data =  send_data + (struct.pack('>BBBB', i, 255, 0, 0))
+    var send_data = new Uint8Array(6);
+    send_data[0] = 1;
+    send_data[1] = 255;
+    send_data[2] = 0;
+    send_data[3] = 255;
+    send_data[4] = 255;
+    send_data[5] = 255;
 
     this.data.udp.send({
-      address: '192.168.1.100', 
-      port: 8848,
-      message: 'hello bling bling'
+      address: '192.168.31.66', 
+      port: 21324,
+      message: send_data
     });
 
     this.setData({text:"udp send"})
-
+    console.log("send finish")
   },
 
   btnClose : function(){
+    console.log("btn close is clicked")
     this.data.udp.close()
     this.setData({isFirst: 1});
 

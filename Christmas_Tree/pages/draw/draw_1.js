@@ -2,6 +2,79 @@
 //import {Light} from './data.js';
 //import {Block} from './data.js';
 
+class LightStringControl {
+  constructor(light_num, udp_addr, udp_port) {
+    this.light_num = light_num;
+    this.data_buf = new Uint8Array(2 + 4*light_num);
+    this.protocol_header_len = 2;
+    this.udp_addr = udp_addr;
+    this.udp_port = udp_port;
+    this.udp = null;
+    this.reset();
+  }
+  
+  reset() {
+    this.last_update_timestamp = (new Date()).valueOf();
+    this.change_cnt = 0;
+    this.setHeader(1, 255);
+    for(var i = 0; i < this.light_num; i++)
+    {
+      var data_index = 2 + i*4;
+      this.data_buf[data_index] = i;
+      this.setColor(i, {R:255, G:255, B:255});
+    }
+    if(null != this.udp)
+    {
+      console.log("udp already init")
+      this.udp.close();
+    }
+
+    this.udp = wx.createUDPSocket()
+    if(null == this.udp){
+      console.log('暂不支持')
+      return ;
+    }
+    this.host_udp_port = this.udp.bind()
+    console.log(this.udp)
+    console.log("host_udp_port is %d", this.host_udp_port)
+  }
+
+  setHeader(version, timeout) {
+    this.data_buf[0] = version; //Byte 0: version
+    this.data_buf[1] = timeout; //Byte 1: timeout
+  }
+
+  setColor(index, color) {
+    if(index <0 || index > this.light_num) {
+      return;
+    }
+    var data_index = 2 + index*4;
+    this.data_buf[data_index + 1] = color.R; //R
+    this.data_buf[data_index + 2] = color.G; //G
+    this.data_buf[data_index + 3] = color.B; //B
+
+    this.change_cnt ++;
+    this.sync();
+  }
+
+  sync() {
+    //update in loop
+    var now = (new Date()).valueOf();
+    if(0 == this.change_cnt || Math.abs(now - this.last_update_timestamp) < 50){ // 50 ms
+      return;
+    }
+    this.last_update_timestamp = now;
+    this.change_cnt = 0;
+
+    var send_data = this.data_buf;
+    this.udp.send({
+      address: this.udp_addr, 
+      port: this.udp_port,
+      message: send_data
+    });
+  }
+}
+
 // 硬件上的灯对象
 class HardwareLight {
   constructor(light_index) {
@@ -69,24 +142,40 @@ class Light {
     */
   }
 
+  //hex format: '#ffffff'
+  RGBToHex(R, G, B){
+    let hex = ((R << 16) | (G << 8) | B).toString(16)
+      if (hex.length < 6) {
+        hex = `${'0'.repeat(6-hex.length)}${hex}`
+      }
+      if (hex == '0') {
+        hex = '000000'
+      }
+      return `#${hex}`
+  }
+
   draw(color) {
     // 画圆
+    var color_hex = this.RGBToHex(color.R, color.G, color.B)
     this.page.data.ctx.arc(this.x, this.y + this.r*2, this.r, 0, 2*Math.PI,false)
-    this.page.data.ctx.setStrokeStyle(color)
+    this.page.data.ctx.setStrokeStyle(color_hex)
     this.page.data.ctx.stroke()
     this.page.data.ctx.draw(true)
 
     // 画圆的时候顺便更新一下数据
     // 将图像中的圆的位置映射到硬件的灯中
     var hardware_light_index_array = this.page.light_circle_to_hardware(this.index);
+
     // 处理每一个应该更新的硬件
     hardware_light_index_array.forEach(light_index => {
-      if(light_index >= 0 && light_index < this.page.data.hardware_lights_array.length){
-        // 设置硬件上的灯的颜色
-        this.page.data.hardware_lights_array[light_index].setColor(color);
-        // 设置硬件上的灯为点亮状态
-        this.page.data.hardware_lights_array[light_index].setSwitchState(true);
-      }
+      this.page.data.light_string_control.setColor(this.index, color);
+
+      // if(light_index >= 0 && light_index < this.page.data.hardware_lights_array.length){
+      //   // 设置硬件上的灯的颜色
+      //   this.page.data.hardware_lights_array[light_index].setColor(color);
+      //   // 设置硬件上的灯为点亮状态
+      //   this.page.data.hardware_lights_array[light_index].setSwitchState(true);
+      // }
     });
   }
 }
@@ -102,7 +191,7 @@ class Block {
   push_light(light){
     this.lights.push(light);
     // 添加到数组中时，顺便把自己画出来
-    light.draw('white');
+    light.draw({R:255, G:255, B:255}); //white
     if(this.used == false){
       this.used = true;
     }
@@ -134,6 +223,7 @@ Page({
     
     hardware_light_nums:100,  // 硬件上灯的数目
     hardware_lights_array: null, // 硬件上的灯对应的数据数组，发送数据可以从这里拿
+    light_string_control: null, //硬件灯串， todo:替换掉 hardware_lights_array
     block_array : null,
     // Rmin: 1, Rmax:7, // delete
     start_x : 50, start_y : 20, // 树顶的位置
@@ -144,7 +234,7 @@ Page({
     light_delta_l: 13, // 两个灯之间的距离，可以认为是圆圈的密度
 
     // 颜色
-    pen_color : '#ffffff',     // 颜色的格式是怎样的
+    pen_color : {R:255, G:255, B:255},     // 颜色的格式是怎样的
     picker_position:0,   // 初始色条的位置
     picker_left:1,
     picker_right:1,
@@ -188,17 +278,6 @@ Page({
     return {R:Math.floor(tR*255), G:Math.floor(tG*255), B:Math.floor(tB*255)};
   },
 
-  RGBToHex(R, G, B){
-    let hex = ((R << 16) | (G << 8) | B).toString(16)
-      if (hex.length < 6) {
-        hex = `${'0'.repeat(6-hex.length)}${hex}`
-      }
-      if (hex == '0') {
-        hex = '000000'
-      }
-      return `#${hex}`
-  },
-
   color_pick(e) {
     var picker_width = this.data.picker_right - this.data.picker_left;
     let picker_x = Math.floor(e.changedTouches[0].pageX - this.data.picker_left);
@@ -210,7 +289,7 @@ Page({
     })
     var color = this.HSLToRGB(Math.floor((picker_x+3)*360/picker_width), 1, 0.5);
     //console.log(color);
-    this.data.pen_color = this.RGBToHex(color.R, color.G, color.B);
+    this.data.pen_color = color;
 
     // 这里需要保存画笔的位置和画笔的颜色
     var key = 'light_pen';
@@ -341,6 +420,12 @@ Page({
     for(var i = 0; i < this.data.hardware_light_nums; ++i){
       this.data.hardware_lights_array[i] = new HardwareLight(i);
     }
+
+    //硬件灯串
+    this.data.light_string_control = new LightStringControl(
+      this.data.hardware_light_nums,
+      '192.168.31.66', 
+      21324);
 
     // 将画树的区域定义为block，生成所有的block对象
     this.data.block_array = new Array();
@@ -502,7 +587,7 @@ Page({
           //console.log(key);
           //console.log(light_data);
         } else {
-          console.log("key %s not found", key);
+          //console.log("key %s not found", key);
         }
       } catch (e) {
         // Do something when catch error
